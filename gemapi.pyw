@@ -31,15 +31,21 @@ class geminiApp(tkinter.Tk):
 		tkinter.Label(self, textvariable=self.btcLabel, width=8, anchor='w', fg='white', bg='black', font=('Segoe UI', 12)) \
 			.grid(column=1, row=0, columnspan=2, sticky='EW')
 
-		self.ethLabel = tkinter.StringVar()
-		tkinter.Label(self, text='ETC: ', anchor='w', fg='white', bg='black', font=('Segoe UI', 12)) \
-			.grid(column=3, row=0, sticky='EW')
-		tkinter.Label(self, textvariable=self.ethLabel, width=8, anchor='w', fg='white', bg='black', font=('Segoe UI', 12)) \
-			.grid(column=4, row=0, columnspan=2, sticky='EW')
+		self.highVar = tkinter.DoubleVar()
+		tkinter.Label(self, text='h:', anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
+			.grid(column=3, row=0, sticky='E')
+		tkinter.Label(self, textvariable=self.highVar, width=8, anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
+			.grid(column=4, row=0, sticky='W')
 
-		self.errorLabel = tkinter.StringVar()
-		tkinter.Label(self, textvariable=self.errorLabel, width=8, anchor='w', fg='red', bg='black', font=('Segoe UI', 12)) \
-			.grid(column=6, row=0, columnspan=2, sticky='EW')
+		self.lowVar = tkinter.DoubleVar()
+		tkinter.Label(self, text='l:', anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
+			.grid(column=5, row=0, sticky='E')
+		tkinter.Label(self, textvariable=self.lowVar, width=8, anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
+			.grid(column=6, row=0, sticky='W')
+
+		# self.errorLabel = tkinter.StringVar()
+		# tkinter.Label(self, textvariable=self.errorLabel, width=8, anchor='w', fg='red', bg='black', font=('Segoe UI', 12)) \
+		# 	.grid(column=6, row=0, columnspan=2, sticky='EW')
 
 		"""ROW 1"""
 
@@ -97,6 +103,7 @@ class geminiApp(tkinter.Tk):
 		# buyBtn.grid(column=4, row=2)
 
 		# self.grid_columnconfigure(0,weight=1)
+		self.configure(bg = 'black')
 		self.resizable(True,False)
 		self.update()
 		self.geometry(self.geometry())
@@ -119,7 +126,11 @@ class geminiApp(tkinter.Tk):
 			ms = data['timestampms']
 			price = float(event['price'])
 
-			if (self.price5.get() == 0.0): self._initializePrices(price)
+			if (self.highVar.get() == 0.0):
+				self.highVar.set(price)
+				self.lowVar.set(price)
+			if (self.highVar.get() < price): self.highVar.set(price)
+			if (self.lowVar.get() > price): self.lowVar.set(price)
 
 			percent = lambda x, y: ((x - y) / x) * 100
 
@@ -174,9 +185,8 @@ class geminiApp(tkinter.Tk):
 	def onError(self, ws, error):
 		self.errorLabel.set(error)
 
-	def setLabel(self, btc='-', eth='-'):
+	def setLabel(self, btc='-'):
 		self.btcLabel.set(btc)
-		self.ethLabel.set(eth)
 
 	def onClose(self, error=None):
 		self._ws.keep_running = False;
