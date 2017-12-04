@@ -43,36 +43,45 @@ class geminiApp(tkinter.Tk):
 
 		"""ROW 1"""
 
-		tkinter.Label(self, text='5m', anchor='w').grid(row=1, column=0, sticky='EW')
-		tkinter.Label(self, text='10m', anchor='w').grid(row=1, column=1, sticky='EW')
-		tkinter.Label(self, text='30m', anchor='w').grid(row=1, column=2, sticky='EW')
-		tkinter.Label(self, text='1h', anchor='w').grid(row=1, column=3, sticky='EW')
+		tkinter.Label(self, text='5m', anchor='w').grid(row=1, column=0, columnspan=2, sticky='EW')
+		tkinter.Label(self, text='10m', anchor='w').grid(row=1, column=2, columnspan=2, sticky='EW')
+		tkinter.Label(self, text='30m', anchor='w').grid(row=1, column=4, columnspan=2, sticky='EW')
+		tkinter.Label(self, text='1h', anchor='w').grid(row=1, column=6, columnspan=2, sticky='EW')
+
 		"""ROW 2"""
 
-		self.price5 = 0.00
-		self.price10 = 0.00
-		self.price30 = 0.00
-		self.price60 = 0.00
+		self.price5 = tkinter.DoubleVar()
+		self.price10 = tkinter.DoubleVar()
+		self.price30 = tkinter.DoubleVar()
+		self.price60 = tkinter.DoubleVar()
 		self.change5 = tkinter.StringVar()
-		self.change5.set('-')
 		self.change10 = tkinter.StringVar()
-		self.change10.set('-')
 		self.change30 = tkinter.StringVar()
-		self.change30.set('-')
 		self.change60 = tkinter.StringVar()
-		self.change60.set('-')
 
-		tkinter.Label(self, textvariable=self.change5, anchor='w') \
-			.grid(column=0, row=2, sticky='EW')
+		tkinter.Label(self, textvariable=self.price5, width=8, anchor='w') \
+			.grid(column=0, row=2, columnspan=2, sticky='EW')
 
-		tkinter.Label(self, textvariable=self.change10, anchor='w') \
-			.grid(column=1, row=2, sticky='EW')
+		tkinter.Label(self, textvariable=self.price10, width=8, anchor='w') \
+			.grid(column=2, row=2, columnspan=2, sticky='EW')
 
-		tkinter.Label(self, textvariable=self.change30, anchor='w') \
-			.grid(column=2, row=2, sticky='EW')
+		tkinter.Label(self, textvariable=self.price30, width=8, anchor='w') \
+			.grid(column=4, row=2, columnspan=2, sticky='EW')
 
-		tkinter.Label(self, textvariable=self.change60, anchor='w') \
-			.grid(column=3, row=2, sticky='EW')
+		tkinter.Label(self, textvariable=self.price60, width=8, anchor='w') \
+			.grid(column=6, row=2, columnspan=2, sticky='EW')
+
+		self.change5label = tkinter.Label(self, textvariable=self.change5, anchor='w')
+		self.change5label.grid(column=0, row=3, columnspan=2, sticky='EW')
+
+		self.change10label = tkinter.Label(self, textvariable=self.change10, anchor='w')
+		self.change10label.grid(column=2, row=3, columnspan=2, sticky='EW')
+
+		self.change30label = tkinter.Label(self, textvariable=self.change30, anchor='w')
+		self.change30label.grid(column=4, row=3, columnspan=2, sticky='EW')
+
+		self.change60label = tkinter.Label(self, textvariable=self.change60, anchor='w')
+		self.change60label.grid(column=6, row=3, columnspan=2, sticky='EW')
 
 		"""ROW 2"""
 
@@ -116,41 +125,36 @@ class geminiApp(tkinter.Tk):
 		data = json.loads(message)
 		event = data['events'][0]
 		if event['type'] == 'trade':
-			ms = data['timestampms']
 			self.setLabel(event['price'])
+			ms = data['timestampms']
+			price = float(event['price'])
 
-			if (self.price5 == 0.0):
-				self.price5 = float(event['price'])
-			if (self.price10 == 0.0):
-				self.price10 = float(event['price'])
-			if (self.price30 == 0.0):
-				self.price30 = float(event['price'])
-			if (self.price60 == 0.0):
-				self.price60 = float(event['price'])
+			percent = lambda x, y: ((x - y) / x) * 100
+
+			self.change5.set('{:.2f}'.format(percent(price, self.price5.get())) + '%') if self.price5.get() != 0.0 else self.change5.set('-')
+			self.change5label.configure(fg='green') if percent(price, self.price5.get()) >= 0 else self.change5label.configure(fg='red')
+
+			self.change10.set('{:.2f}'.format(percent(price, self.price10.get())) + '%') if self.price10.get() != 0.0 else self.change10.set('-')
+			self.change10label.configure(fg='green') if percent(price, self.price10.get()) >= 0 else self.change10label.configure(fg='red')
+
+			self.change30.set('{:.2f}'.format(percent(price, self.price30.get())) + '%') if self.price30.get() != 0.0 else self.change30.set('-')
+			self.change30label.configure(fg='green') if percent(price, self.price30.get()) >= 0 else self.change30label.configure(fg='red')
+			
+			self.change60.set('{:.2f}'.format(percent(price, self.price60.get())) + '%') if self.price60.get() != 0.0 else self.change60.set('-')
+			self.change60label.configure(fg='green') if percent(price, self.price60.get())>= 0 else self.change60label.configure(fg='red')
+
 
 			if ms - self.time5 >= 300000:
-				price = float(event['price'])
-				change = (price / self.price5) - 1
-				self.change5.set('{:.2f}'.format(change))
-				self.price5 = price
+				self.price5.set(price)
 				self.time5 = ms
 			if ms - self.time10 >= 600000:
-				price = float(event['price'])
-				change = (price / self.price10) - 1
-				self.change10.set('{:.2f}'.format(change))
-				self.price10 = price
+				self.price10.set(price)
 				self.time10 = ms
 			if ms - self.time30 >= 1800000:
-				price = float(event['price'])
-				change = (price / self.price30) - 1
-				self.change30.set('{:.2f}'.format(change))
-				self.price30 = price
+				self.price30.set(price)
 				self.time30 = ms
 			if ms - self.time60 >= 3600000:
-				price = float(event['price'])
-				change = (price / self.price60) - 1
-				self.change60.set('{:.2f}'.format(change))
-				self.price60 = price
+				self.price60.set(price)
 				self.time60 = ms
 
 	def onError(self, ws, error):
