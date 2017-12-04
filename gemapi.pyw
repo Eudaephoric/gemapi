@@ -33,15 +33,15 @@ class geminiApp(tkinter.Tk):
 
 		self.highVar = tkinter.DoubleVar()
 		tkinter.Label(self, text='h:', anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
-			.grid(column=3, row=0, sticky='E')
+			.grid(column=5, row=0, sticky='E')
 		tkinter.Label(self, textvariable=self.highVar, width=8, anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
-			.grid(column=4, row=0, sticky='W')
+			.grid(column=6, row=0, sticky='W')
 
 		self.lowVar = tkinter.DoubleVar()
 		tkinter.Label(self, text='l:', anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
-			.grid(column=5, row=0, sticky='E')
+			.grid(column=3, row=0, sticky='E')
 		tkinter.Label(self, textvariable=self.lowVar, width=8, anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
-			.grid(column=6, row=0, sticky='W')
+			.grid(column=4, row=0, sticky='W')
 
 		# self.errorLabel = tkinter.StringVar()
 		# tkinter.Label(self, textvariable=self.errorLabel, width=8, anchor='w', fg='red', bg='black', font=('Segoe UI', 12)) \
