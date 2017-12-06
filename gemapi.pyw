@@ -1,4 +1,4 @@
-# test script
+# GemAPI.pyw
 
 import tkinter
 import threading
@@ -6,29 +6,32 @@ import websocket
 import requests
 import json
 import time
+import importlib
 
-class geminiApp(tkinter.Tk):
+gemutils = importlib.import_module('gemutils')
+
+class GemAPI(tkinter.Tk):
 	def __init__(self,parent):
 		tkinter.Tk.__init__(self,parent)
 
-		self._ws = None
+		self._gs = gemutils.GemSocket(self.onMessage, self.onError)
+		self._gs.start()
 		self._rest = None
 		self.parent = parent
 
 		self.initializeUI()
-		self.initializeWS()
 		self.updatePriceHistory()
-		self.setLabel()
 
 	def initializeUI(self):
 		self.grid()
 
-		"""ROW 0"""
+		# Row 0
 
-		self.btcLabel = tkinter.StringVar()
+		self.btcVar = tkinter.DoubleVar()
+		self.btcVar.set('-')
 		tkinter.Label(self, text='BTC:', anchor='w', fg='white', bg='black', font=('Segoe UI', 12)) \
 			.grid(column=0, row=0, sticky='EW')
-		tkinter.Label(self, textvariable=self.btcLabel, width=8, anchor='w', fg='white', bg='black', font=('Segoe UI', 12)) \
+		tkinter.Label(self, textvariable=self.btcVar, width=8, anchor='w', fg='white', bg='black', font=('Segoe UI', 12)) \
 			.grid(column=1, row=0, columnspan=2, sticky='EW')
 
 		self.highVar = tkinter.DoubleVar()
@@ -43,54 +46,51 @@ class geminiApp(tkinter.Tk):
 		tkinter.Label(self, textvariable=self.lowVar, width=8, anchor='w', fg='gray', bg='black', font=('Segoe UI', 8)) \
 			.grid(column=4, row=0, sticky='W')
 
-		# self.errorLabel = tkinter.StringVar()
-		# tkinter.Label(self, textvariable=self.errorLabel, width=8, anchor='w', fg='red', bg='black', font=('Segoe UI', 12)) \
-		# 	.grid(column=6, row=0, columnspan=2, sticky='EW')
-
-		"""ROW 1"""
-
+		# Row 1
 		tkinter.Label(self, text='5m', anchor='w').grid(row=1, column=0, columnspan=2, sticky='EW')
 		tkinter.Label(self, text='10m', anchor='w').grid(row=1, column=2, columnspan=2, sticky='EW')
 		tkinter.Label(self, text='30m', anchor='w').grid(row=1, column=4, columnspan=2, sticky='EW')
 		tkinter.Label(self, text='1h', anchor='w').grid(row=1, column=6, columnspan=2, sticky='EW')
 
-		"""ROW 2"""
+		# Row 2
 
-		self.price5 = tkinter.DoubleVar()
-		self.price10 = tkinter.DoubleVar()
-		self.price30 = tkinter.DoubleVar()
-		self.price60 = tkinter.DoubleVar()
+		self.change = {
+			5: {'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
+			10: {'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
+			30: {'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
+			60: {'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()}
+		}
 
-		self.change5 = tkinter.StringVar()
-		self.change10 = tkinter.StringVar()
-		self.change30 = tkinter.StringVar()
-		self.change60 = tkinter.StringVar()
+		tkinter.Label(self, textvariable=self.change[5]['price'], fg='dim gray', width=8, anchor='w') \
+			.grid(column=0, row=2, columnspan=2, sticky='EW')
 
-		self.price5label = tkinter.Label(self, textvariable=self.price5, fg='dim gray', width=8, anchor='w')
-		self.price5label.grid(column=0, row=2, columnspan=2, sticky='EW')
+		tkinter.Label(self, textvariable=self.change[10]['price'], fg='dim gray', width=8, anchor='w') \
+			.grid(column=2, row=2, columnspan=2, sticky='EW')
 
-		self.price10label = tkinter.Label(self, textvariable=self.price10, fg='dim gray', width=8, anchor='w')
-		self.price10label.grid(column=2, row=2, columnspan=2, sticky='EW')
+		tkinter.Label(self, textvariable=self.change[30]['price'], fg='dim gray', width=8, anchor='w') \
+			.grid(column=4, row=2, columnspan=2, sticky='EW')
 
-		self.price30label = tkinter.Label(self, textvariable=self.price30, fg='dim gray', width=8, anchor='w')
-		self.price30label.grid(column=4, row=2, columnspan=2, sticky='EW')
+		tkinter.Label(self, textvariable=self.change[60]['price'], fg='dim gray', width=8, anchor='w') \
+			.grid(column=6, row=2, columnspan=2, sticky='EW')
 
-		self.price60label = tkinter.Label(self, textvariable=self.price60, fg='dim gray', width=8, anchor='w')
-		self.price60label.grid(column=6, row=2, columnspan=2, sticky='EW')
+		self.change[5]['label'] = tkinter.Label(self, textvariable=self.change[5]['percent'], anchor='w')
+		self.change[5]['label'].grid(column=0, row=3, columnspan=2, sticky='EW')
 
-		self.change5label = tkinter.Label(self, textvariable=self.change5, anchor='w')
-		self.change5label.grid(column=0, row=3, columnspan=2, sticky='EW')
+		self.change[10]['label'] = tkinter.Label(self, textvariable=self.change[10]['percent'], anchor='w')
+		self.change[10]['label'].grid(column=2, row=3, columnspan=2, sticky='EW')
 
-		self.change10label = tkinter.Label(self, textvariable=self.change10, anchor='w')
-		self.change10label.grid(column=2, row=3, columnspan=2, sticky='EW')
+		self.change[30]['label'] = tkinter.Label(self, textvariable=self.change[30]['percent'], anchor='w')
+		self.change[30]['label'].grid(column=4, row=3, columnspan=2, sticky='EW')
 
-		self.change30label = tkinter.Label(self, textvariable=self.change30, anchor='w')
-		self.change30label.grid(column=4, row=3, columnspan=2, sticky='EW')
+		self.change[60]['label'] = tkinter.Label(self, textvariable=self.change[60]['percent'], anchor='w')
+		self.change[60]['label'].grid(column=6, row=3, columnspan=2, sticky='EW')
 
-		self.change60label = tkinter.Label(self, textvariable=self.change60, anchor='w')
-		self.change60label.grid(column=6, row=3, columnspan=2, sticky='EW')
+		self.errorVar = tkinter.StringVar()
+		self.errorLabel = tkinter.Label(self, textvariable=self.errorVar, anchor='w') \
+			.grid(column=0, row=4, columnspan=8, sticky='EW')
 
-		"""ROW 2"""
+
+		# Row 4
 
 		# priceLabel = tkinter.Label(self, text='Price:', width=6, anchor='e', fg='white', bg='black')
 		# priceLabel.grid(column=0, row=2, sticky='EW')
@@ -109,42 +109,36 @@ class geminiApp(tkinter.Tk):
 		self.geometry(self.geometry())
 		self.protocol('WM_DELETE_WINDOW', self.onClose)
 
-	def initializeWS(self):
-		wst = threading.Thread(target=self.wsConnection)
-		wst.daemon = True
-		wst.start()
+	def onMessage(self, message):
+		price = float(message['price'])
+		timestamp = message['timestampms']
 
-	def wsConnection(self):
-		self._ws = websocket.WebSocketApp("wss://api.gemini.com/v1/marketdata/BTCUSD", on_message=self.onMessage, on_error=self.onError, on_close=self.onClose)
-		self._ws.run_forever(ping_interval=5)
+		self.btcVar.set(price)
 
-	def onMessage(self, ws, message):
-		data = json.loads(message)
-		event = data['events'][0]
-		if event['type'] == 'trade':
-			self.setLabel(event['price'])
-			ms = data['timestampms']
-			price = float(event['price'])
+		if (not self.lowVar.get() or self.lowVar.get() > price):
+			self.lowVar.set(price)
 
-			if (self.highVar.get() == 0.0):
-				self.highVar.set(price)
-				self.lowVar.set(price)
-			if (self.highVar.get() < price): self.highVar.set(price)
-			if (self.lowVar.get() > price): self.lowVar.set(price)
+		if (not self.highVar.get() or self.highVar.get() < price):
+			self.highVar.set(price)
 
-			percent = lambda x, y: ((x - y) / x) * 100
+		self.updateChange(5, price)
+		self.updateChange(10, price)
+		self.updateChange(30, price)
+		self.updateChange(60, price)
 
-			self.change5.set('{:.2f}'.format(percent(price, self.price5.get())) + '%') if self.price5.get() != 0.0 else self.change5.set('-')
-			self.change5label.configure(fg='green') if percent(price, self.price5.get()) >= 0 else self.change5label.configure(fg='red')
+	def updateChange(self, cat, price):
+		percent = lambda x, y: ((x - y) / x) * 100
+		p = self.change[cat]['price'].get()
+		if p:
+			c = percent(price, p)
+			self.change[cat]['label'].configure(fg='green') if c >= 0 else self.change[cat]['label'].configure(fg='red')
+			self.change[cat]['percent'].set( self.formatPrice( c ) + '%')
 
-			self.change10.set('{:.2f}'.format(percent(price, self.price10.get())) + '%') if self.price10.get() != 0.0 else self.change10.set('-')
-			self.change10label.configure(fg='green') if percent(price, self.price10.get()) >= 0 else self.change10label.configure(fg='red')
+	def formatPrice(self, dbl):
+		return '{:.2f}'.format(dbl)
 
-			self.change30.set('{:.2f}'.format(percent(price, self.price30.get())) + '%') if self.price30.get() != 0.0 else self.change30.set('-')
-			self.change30label.configure(fg='green') if percent(price, self.price30.get()) >= 0 else self.change30label.configure(fg='red')
-
-			self.change60.set('{:.2f}'.format(percent(price, self.price60.get())) + '%') if self.price60.get() != 0.0 else self.change60.set('-')
-			self.change60label.configure(fg='green') if percent(price, self.price60.get())>= 0 else self.change60label.configure(fg='red')
+	def onSocketError(self, error):
+		print(error)
 
 	def startRestThread(self):
 		self._rest = threading.Timer(10, self.updatePriceHistory)
@@ -160,36 +154,34 @@ class geminiApp(tkinter.Tk):
 		data = resp.json()
 		if data:
 			price = float(data[0]['price'])
-			self.price5.set(price)
+			self.change[5]['price'].set(price)
 
 		resp = requests.get(url + '?limit_trades=1&since=%d' % (currentms() - 600000))
 		data = resp.json()
 		if data:
 			price = float(data[0]['price'])
-			self.price10.set(price)
+			self.change[10]['price'].set(price)
 
 		resp = requests.get(url + '?limit_trades=1&since=%d' % (currentms() - 1800000))
 		data = resp.json()
 		if data:
 			price = float(data[0]['price'])
-			self.price30.set(price)
+			self.change[30]['price'].set(price)
 
 		resp = requests.get(url + '?limit_trades=1&since=%d' % (currentms() - 3600000))
 		data = resp.json()
 		if data:
 			price = float(data[0]['price'])
-			self.price60.set(price)
+			self.change[60]['price'].set(price)
 
 		self.startRestThread()
 
 	def onError(self, ws, error):
-		self.errorLabel.set(error)
-
-	def setLabel(self, btc='-'):
-		self.btcLabel.set(btc)
+		self.errorVar.set(error)
 
 	def onClose(self, error=None):
-		self._ws.keep_running = False;
+		# self._ws.keep_running = False;
+		self._gs.stop()
 		self._rest.cancel()
 		self.destroy()
 
@@ -200,7 +192,7 @@ class geminiApp(tkinter.Tk):
 		pass
 
 if __name__ == "__main__":
-	app = geminiApp(None)
+	app = GemAPI(None)
 	app.title('GEMAPI')
 	app.attributes('-topmost', 'true')
 	app.mainloop()
