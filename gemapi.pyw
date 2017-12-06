@@ -1,12 +1,8 @@
 # GemAPI.pyw
 
 import tkinter
-import threading
-import websocket
-import requests
-import json
-import time
 import importlib
+import signal
 
 gemutils = importlib.import_module('gemutils')
 
@@ -14,13 +10,16 @@ class GemAPI(tkinter.Tk):
 	def __init__(self,parent):
 		tkinter.Tk.__init__(self,parent)
 
-		self._gs = gemutils.GemSocket(self.onMessage, self.onError)
-		self._gs.start()
 		self._rest = None
 		self.parent = parent
-
 		self.initializeUI()
-		self.updatePriceHistory()
+
+		self._gs = gemutils.GemSocket(self.onMessage, self.onError)
+		self._gs.start()
+		self._gr = gemutils.GemRest(self.history, self.historyCallback)
+		self._gr.start()
+
+		signal.signal(signal.SIGINT, self.onClose)
 
 	def initializeUI(self):
 		self.grid()
@@ -28,7 +27,7 @@ class GemAPI(tkinter.Tk):
 		# Row 0
 
 		self.btcVar = tkinter.DoubleVar()
-		self.btcVar.set('-')
+		self.btcVar.set('0.0')
 		tkinter.Label(self, text='BTC:', anchor='w', fg='white', bg='black', font=('Segoe UI', 12)) \
 			.grid(column=0, row=0, sticky='EW')
 		tkinter.Label(self, textvariable=self.btcVar, width=8, anchor='w', fg='white', bg='black', font=('Segoe UI', 12)) \
@@ -47,47 +46,32 @@ class GemAPI(tkinter.Tk):
 			.grid(column=4, row=0, sticky='W')
 
 		# Row 1
-		tkinter.Label(self, text='5m', anchor='w').grid(row=1, column=0, columnspan=2, sticky='EW')
-		tkinter.Label(self, text='10m', anchor='w').grid(row=1, column=2, columnspan=2, sticky='EW')
-		tkinter.Label(self, text='30m', anchor='w').grid(row=1, column=4, columnspan=2, sticky='EW')
-		tkinter.Label(self, text='1h', anchor='w').grid(row=1, column=6, columnspan=2, sticky='EW')
+		tkinter.Label(self, text='1m', anchor='w').grid(row=1, column=0, columnspan=2, sticky='EW')
+		tkinter.Label(self, text='5m', anchor='w').grid(row=1, column=2, columnspan=2, sticky='EW')
+		tkinter.Label(self, text='10m', anchor='w').grid(row=1, column=4, columnspan=2, sticky='EW')
+		tkinter.Label(self, text='30m', anchor='w').grid(row=1, column=6, columnspan=2, sticky='EW')
+		tkinter.Label(self, text='1h', anchor='w').grid(row=1, column=8, columnspan=2, sticky='EW')
 
 		# Row 2
 
-		self.change = {
-			5: {'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
-			10: {'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
-			30: {'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
-			60: {'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()}
-		}
+		self.history = [
+			{'time': 60, 'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
+			{'time': 300, 'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
+			{'time': 600, 'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
+			{'time': 1800, 'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()},
+			{'time': 3600, 'price': tkinter.DoubleVar(), 'percent': tkinter.StringVar(), 'label': tkinter.Label()}
+		]
 
-		tkinter.Label(self, textvariable=self.change[5]['price'], fg='dim gray', width=8, anchor='w') \
-			.grid(column=0, row=2, columnspan=2, sticky='EW')
+		for x in range(0, len(self.history)):
+			tkinter.Label(self, textvariable=self.history[x]['price'], fg='dim gray', width=8, anchor='w') \
+				.grid(column=x*2, row=2, columnspan=2, sticky='EW')
 
-		tkinter.Label(self, textvariable=self.change[10]['price'], fg='dim gray', width=8, anchor='w') \
-			.grid(column=2, row=2, columnspan=2, sticky='EW')
-
-		tkinter.Label(self, textvariable=self.change[30]['price'], fg='dim gray', width=8, anchor='w') \
-			.grid(column=4, row=2, columnspan=2, sticky='EW')
-
-		tkinter.Label(self, textvariable=self.change[60]['price'], fg='dim gray', width=8, anchor='w') \
-			.grid(column=6, row=2, columnspan=2, sticky='EW')
-
-		self.change[5]['label'] = tkinter.Label(self, textvariable=self.change[5]['percent'], anchor='w')
-		self.change[5]['label'].grid(column=0, row=3, columnspan=2, sticky='EW')
-
-		self.change[10]['label'] = tkinter.Label(self, textvariable=self.change[10]['percent'], anchor='w')
-		self.change[10]['label'].grid(column=2, row=3, columnspan=2, sticky='EW')
-
-		self.change[30]['label'] = tkinter.Label(self, textvariable=self.change[30]['percent'], anchor='w')
-		self.change[30]['label'].grid(column=4, row=3, columnspan=2, sticky='EW')
-
-		self.change[60]['label'] = tkinter.Label(self, textvariable=self.change[60]['percent'], anchor='w')
-		self.change[60]['label'].grid(column=6, row=3, columnspan=2, sticky='EW')
+			self.history[x]['label'] = tkinter.Label(self, textvariable=self.history[x]['percent'], anchor='w')
+			self.history[x]['label'].grid(column=x*2, row=3, columnspan=2, sticky='EW')
 
 		self.errorVar = tkinter.StringVar()
 		self.errorLabel = tkinter.Label(self, textvariable=self.errorVar, anchor='w') \
-			.grid(column=0, row=4, columnspan=8, sticky='EW')
+			.grid(column=0, row=4, columnspan=10, sticky='EW')
 
 
 		# Row 4
@@ -109,6 +93,10 @@ class GemAPI(tkinter.Tk):
 		self.geometry(self.geometry())
 		self.protocol('WM_DELETE_WINDOW', self.onClose)
 
+	def historyCallback(self, history):
+		self.history = history
+		self.updateHistory()
+
 	def onMessage(self, message):
 		price = float(message['price'])
 		timestamp = message['timestampms']
@@ -121,68 +109,29 @@ class GemAPI(tkinter.Tk):
 		if (not self.highVar.get() or self.highVar.get() < price):
 			self.highVar.set(price)
 
-		self.updateChange(5, price)
-		self.updateChange(10, price)
-		self.updateChange(30, price)
-		self.updateChange(60, price)
+		self.updateHistory()
 
-	def updateChange(self, cat, price):
+	def updateHistory(self):
 		percent = lambda x, y: ((x - y) / x) * 100
-		p = self.change[cat]['price'].get()
-		if p:
-			c = percent(price, p)
-			self.change[cat]['label'].configure(fg='green') if c >= 0 else self.change[cat]['label'].configure(fg='red')
-			self.change[cat]['percent'].set( self.formatPrice( c ) + '%')
+		price = self.btcVar.get()
+
+		for x in range(0, len(self.history)):
+			p = self.history[x]['price'].get()
+			if p and price:
+				c = percent(price, p)
+				self.history[x]['label'].configure(fg='green') if c >= 0 else self.history[x]['label'].configure(fg='red')
+				self.history[x]['percent'].set( self.formatPrice( c ) + '%')
 
 	def formatPrice(self, dbl):
 		return '{:.2f}'.format(dbl)
 
-	def onSocketError(self, error):
-		print(error)
-
-	def startRestThread(self):
-		self._rest = threading.Timer(10, self.updatePriceHistory)
-		self._rest.start()
-
-	def updatePriceHistory(self):
-		url = 'https://api.gemini.com/v1/trades/BTCUSD'
-		currentms = lambda: int(round(time.time() * 1000))
-
-		self.lastTimeUpdate = currentms()
-
-		resp = requests.get(url + '?limit_trades=1&since=%d' % (currentms() - 300000))
-		data = resp.json()
-		if data:
-			price = float(data[0]['price'])
-			self.change[5]['price'].set(price)
-
-		resp = requests.get(url + '?limit_trades=1&since=%d' % (currentms() - 600000))
-		data = resp.json()
-		if data:
-			price = float(data[0]['price'])
-			self.change[10]['price'].set(price)
-
-		resp = requests.get(url + '?limit_trades=1&since=%d' % (currentms() - 1800000))
-		data = resp.json()
-		if data:
-			price = float(data[0]['price'])
-			self.change[30]['price'].set(price)
-
-		resp = requests.get(url + '?limit_trades=1&since=%d' % (currentms() - 3600000))
-		data = resp.json()
-		if data:
-			price = float(data[0]['price'])
-			self.change[60]['price'].set(price)
-
-		self.startRestThread()
-
 	def onError(self, ws, error):
 		self.errorVar.set(error)
 
-	def onClose(self, error=None):
+	def onClose(self, signal = None, frame = None):
 		# self._ws.keep_running = False;
 		self._gs.stop()
-		self._rest.cancel()
+		self._gr.stop()
 		self.destroy()
 
 	def OnButtonClick(self):
